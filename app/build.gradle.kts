@@ -44,8 +44,9 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
+
     implementation("io.ktor:ktor-client-logging:2.3.7")
-    implementation("io.ktor:ktor-client-okhttp:2.3.7")  // engine Android
+    implementation("io.ktor:ktor-client-okhttp:2.3.7")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-jdk8:1.7.3")
 
@@ -58,7 +59,6 @@ dependencies {
     implementation("org.bouncycastle:bcprov-jdk15on:1.70")
     implementation("com.github.multiformats:java-multihash:1.3.0")
 
-    // Compose
     val composeBom = platform("androidx.compose:compose-bom:2023.08.00")
     implementation(composeBom)
     implementation("androidx.compose.ui:ui")

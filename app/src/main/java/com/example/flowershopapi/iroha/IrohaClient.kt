@@ -11,8 +11,9 @@ import java.security.KeyPair
 
 class IrohaClient(private val config: IrohaConfig) {
 
+    // Dans IrohaClient.kt
     val adminKeyPair: KeyPair by lazy {
-        keyPairFromHex(config.adminPublicKey, config.adminPrivateKey)
+        com.example.flowershopapi.utils.KeyUtils.keyPairFromHex(config.adminPublicKey, config.adminPrivateKey)
     }
 
     val adminAccountId: AccountId by lazy {
