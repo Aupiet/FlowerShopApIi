@@ -1,15 +1,64 @@
+# ==========================================
+# Android / Gradle
+# ==========================================
+.gradle/
+build/
+/*/build/
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.ap_
+*.dex
+*.class
+
+# ==========================================
+# IDE - IntelliJ / Android Studio
+# ==========================================
 *.iml
-.gradle
-/local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
-.DS_Store
-/build
-/captures
-.externalNativeBuild
-.cxx
+.idea/caches/
+.idea/libraries/
+.idea/modules.xml
+.idea/workspace.xml
+.idea/navEditor.xml
+.idea/assetWizardSettings.xml
+.idea/modules/
+.idea/runConfigurations/
+.idea/shelf/
+.idea/vcs.xml
+*.ipr
+*.iws
+.navigation/
+
+# ==========================================
+# Kotlin / Java
+# ==========================================
+.kotlin/
+kotlin-daemon-embeddable-*.jar
+
+# ==========================================
+# Secrets, Configs & Keys
+# ==========================================
 local.properties
+*.jks
+*.keystore
+*.p12
+*.pem
+google-services.json
+# secrets.properties
+
+# ==========================================
+# OS Files (Windows, macOS, Linux)
+# ==========================================
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*~
+.fuse_hidden*
+.directory
+
+# ==========================================
+# Logs & Temp
+# ==========================================
+*.log
