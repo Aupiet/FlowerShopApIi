@@ -24,12 +24,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         // Configuration corrigée : IP pour l'émulateur et clés sans préfixes multihash
-        val config = IrohaConfig(
-            apiUrl = URL("http://10.0.2.2:8080"),
-            chainId = UUID.fromString("00000000-0000-0000-0000-000000000000"),
-            adminPublicKey = "32F0C017884729DD1E4F0DE3359F53444AB03FA18D64C3A31C02D2787D5B9CBA",
-            adminPrivateKey = "76D6468D63CD0FD0F40BBCB495DA09620BA6F1148CD7A8BFDD075F0F787D7A18"
-        )
+        val config = IrohaConfig()
 
         val irohaClient = IrohaClient(config)
         val queryService = QueryService(irohaClient)
