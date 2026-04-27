@@ -6,7 +6,8 @@ import java.util.UUID
 data class IrohaConfig(
     val apiUrl: URL = URL("http://10.0.2.2:8080"),
     val chainId: UUID = UUID.fromString("00000000-0000-0000-0000-000000000000"),
-    val adminDomain: String = "wonderland",
-    val adminPublicKey: String = "CE7FA46C9DCE7EA4B125E2E36BDB63EA33073E7590AC92816AE1E861B7048B03",
-    val adminPrivateKey: String = "CCF31D85E3B32A4BEA59987CE0C78E3B8E2DB93881468AB2435FE45D5C9DCD53"
+    // Compte WarehouseAccount — admin avec CanRegisterDomain + CanSetParameters
+    val adminDomain: String = "warehouse",
+    val adminPublicKey: String  = "32F0C017884729DD1E4F0DE3359F53444AB03FA18D64C3A31C02D2787D5B9CBA",
+    val adminPrivateKey: String = "76D6468D63CD0FD0F40BBCB495DA09620BA6F1148CD7A8BFDD075F0F787D7A18" // ← tu dois avoir cette clé
 )
