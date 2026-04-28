@@ -1,3 +1,11 @@
+import java.util.Properties
+
+val localProps = Properties()
+val localPropsFile = rootProject.file("local.properties")
+if (localPropsFile.exists()) {
+    localProps.load(localPropsFile.inputStream())
+}
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -14,6 +22,17 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
+        buildConfigField(
+            "String",
+            "REGISTRAR_PUBLIC_KEY",
+            "\"${localProps["REGISTRAR_PUBLIC_KEY"]}\""
+        )
+        buildConfigField(
+            "String",
+            "REGISTRAR_PRIVATE_KEY",
+            "\"${localProps["REGISTRAR_PRIVATE_KEY"]}\""
+        )
+
     }
 
     buildTypes {
@@ -37,6 +56,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 

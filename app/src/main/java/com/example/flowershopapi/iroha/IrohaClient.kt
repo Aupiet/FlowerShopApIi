@@ -9,20 +9,26 @@ import jp.co.soramitsu.iroha2.toIrohaPublicKey
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.net.URI
+import java.security.KeyPair
 
-class IrohaClient(private val config: IrohaConfig) {
+class IrohaClient(private var config: IrohaConfig) {
 
-    private lateinit var _client: AdminIroha2Client
+    private var _client: AdminIroha2Client? = null
     private lateinit var _admin: AccountId
-    private lateinit var _keyPair: java.security.KeyPair
+    private lateinit var _keyPair: KeyPair
 
     suspend fun init() {
-        if (::_client.isInitialized) return
+        if (_client != null) return
+        forceInit()
+    }
+
+    private suspend fun forceInit() {
         withContext(Dispatchers.IO) {
             _keyPair = keyPairFromHex(config.adminPublicKey, config.adminPrivateKey)
 
+            val domain = config.adminDomain.asDomainId()
             _admin = AccountId(
-                config.adminDomain.asDomainId(),
+                domain,
                 publicKeyFromHex(config.adminPublicKey).toIrohaPublicKey()
             )
 
@@ -35,11 +41,20 @@ class IrohaClient(private val config: IrohaConfig) {
         }
     }
 
+    /**
+     * Met à jour la configuration et réinitialise le client.
+     */
+    suspend fun updateConfig(newConfig: IrohaConfig) {
+        config = newConfig
+        _client = null // Force la réinitialisation au prochain init()
+        forceInit()
+    }
+
     suspend fun getClient(): AdminIroha2Client {
-        init()
-        return _client
+        if (_client == null) init()
+        return _client!!
     }
 
     fun getAdmin(): AccountId = _admin
-    fun getKeyPair(): java.security.KeyPair = _keyPair
+    fun getKeyPair(): KeyPair = _keyPair
 }
