@@ -4,7 +4,6 @@ import com.example.flowershopapi.iroha.IrohaClient
 import com.example.flowershopapi.iroha.IrohaConfig
 import com.example.flowershopapi.iroha.TransactionService
 import jp.co.soramitsu.iroha2.keyPairFromHex
-import jp.co.soramitsu.iroha2.toHex
 import jp.co.soramitsu.iroha2.toIrohaPublicKey
 import jp.co.soramitsu.iroha2.generated.AccountId
 import jp.co.soramitsu.iroha2.asDomainId
@@ -21,9 +20,10 @@ class Identification(
 ) {
 
     /**
-     * Dérive un KeyPair Iroha à partir du pseudo et mot de passe.
+     * Génère la paire de clés brute (hex) à partir du pseudo et mot de passe.
+     * Retourne une paire (publicKeyHex, privateKeyHex) sans préfixe.
      */
-    fun deriveKeyPair(username: String, password: String): KeyPair {
+    private fun deriveRawKeys(username: String, password: String): Pair<String, String> {
         val salt = username.toByteArray()
         val spec = PBEKeySpec(password.toCharArray(), salt, 10000, 256)
         val factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
@@ -32,26 +32,29 @@ class Identification(
         val privKeyParams = Ed25519PrivateKeyParameters(seed, 0)
         val pubKeyParams = privKeyParams.generatePublicKey()
 
-        val privHex = Hex.toHexString(privKeyParams.encoded)
-        val pubHex = Hex.toHexString(pubKeyParams.encoded)
-
-        return keyPairFromHex(privHex, pubHex)
+        val pubHex = Hex.toHexString(pubKeyParams.encoded)   // 64 chars
+        val privHex = Hex.toHexString(privKeyParams.encoded) // 64 chars
+        return pubHex to privHex
     }
 
     /**
-     * Connecte l'utilisateur en mettant à jour la config avec ses clés dérivées.
+     * Dérive un KeyPair Iroha à partir du pseudo et mot de passe.
+     * Utilise les clés brutes (sans préfixe Multihash).
      */
-    suspend fun connexion(username: String, password: String) {
-        val keys = deriveKeyPair(username, password)
+    fun deriveKeyPair(username: String, password: String): KeyPair {
+        val (pubHex, privHex) = deriveRawKeys(username, password)
+        return keyPairFromHex(pubHex, privHex)
+    }
 
-        // ✅ .encoded.toHex() — ByteArray.toHex() existe, pas PublicKey.toHex()
-        val pubHex = keys.public.encoded.toHex()
-        val privHex = keys.private.encoded.toHex()
-
+    /**
+     * Connecte l'utilisateur en mettant à jour la config avec ses clés dérivées (brutes).
+     */
+    suspend fun connexion(username: String, password: String, domain: String) {
+        val (pubHex, privHex) = deriveRawKeys(username, password)
         val userConfig = IrohaConfig().copy(
-            adminDomain = "customer",
-            adminPublicKey = pubHex,
-            adminPrivateKey = privHex
+            adminDomain = domain,
+            adminPublicKey = pubHex,   // clé brute, pas de "ed0120"
+            adminPrivateKey = privHex  // clé brute, pas de "802620"
         )
 
         irohaClient.updateConfig(userConfig)
@@ -65,21 +68,16 @@ class Identification(
     }
 
     /**
-     * Crée le compte customer sur la blockchain.
-     * La clé publique est intégrée dans l'AccountId, pas en paramètre séparé.
+     * Crée le compte sur la blockchain dans un domaine spécifique.
      */
-    suspend fun registerCustomerAccount(username: String, password: String) {
+    suspend fun registerAccountInDomain(username: String, password: String, domain: String) {
         val keys = deriveKeyPair(username, password)
-
-        // ✅ Pattern de Main.kt : clé publique dans l'AccountId
         val accountId = AccountId(
-            "customer".asDomainId(),
+            domain.asDomainId(),
             keys.public.toIrohaPublicKey()
         )
-
         transactionService.registerAccount(
             id = accountId.asString()
-            // ← pas de signatories, la clé est dans l'ID
         )
     }
 }

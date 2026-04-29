@@ -7,6 +7,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.example.flowershopapi.iroha.IrohaClient
 import com.example.flowershopapi.iroha.QueryService
 import com.example.flowershopapi.iroha.TransactionService
 import com.example.flowershopapi.utils.Identification
@@ -15,8 +16,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AuthScreen(
+    irohaClient: IrohaClient,
     queryService: QueryService,
     transactionService: TransactionService,
     identification: Identification,
@@ -26,7 +29,30 @@ fun AuthScreen(
     var usernameInput by remember { mutableStateOf("") }
     var passwordInput by remember { mutableStateOf("") }
     var statusMessage by remember { mutableStateOf("") }
+    
+    var domains by remember { mutableStateOf<List<String>>(emptyList()) }
+    var selectedDomain by remember { mutableStateOf("") }
+    var isExpanded by remember { mutableStateOf(false) }
+    
     val scope = rememberCoroutineScope()
+
+    // Charger la liste des domaines au démarrage
+    LaunchedEffect(Unit) {
+        scope.launch(Dispatchers.IO) {
+            try {
+                val allDomains = queryService.findAllDomains()
+                val domainNames = allDomains.map { it.id.asString() }
+                withContext(Dispatchers.Main) {
+                    domains = domainNames
+                    if (domainNames.isNotEmpty()) {
+                        selectedDomain = domainNames.first()
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) { statusMessage = "Erreur domaines: ${e.message}" }
+            }
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -39,17 +65,49 @@ fun AuthScreen(
             text = when(authMode) {
                 AuthMode.LOGIN -> "Connexion"
                 AuthMode.SIGNUP -> "Inscription"
-                AuthMode.SIGNUP_CUSTOMER -> "Inscription Client"
             },
             style = MaterialTheme.typography.headlineLarge
         )
         
         Spacer(modifier = Modifier.height(16.dp))
 
+        // Menu déroulant pour les domaines
+        ExposedDropdownMenuBox(
+            expanded = isExpanded,
+            onExpandedChange = { isExpanded = !isExpanded },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            OutlinedTextField(
+                value = selectedDomain,
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("Domaine") },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isExpanded) },
+                colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                modifier = Modifier.menuAnchor().fillMaxWidth()
+            )
+            ExposedDropdownMenu(
+                expanded = isExpanded,
+                onDismissRequest = { isExpanded = false }
+            ) {
+                domains.forEach { domain ->
+                    DropdownMenuItem(
+                        text = { Text(domain) },
+                        onClick = {
+                            selectedDomain = domain
+                            isExpanded = false
+                        }
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
         OutlinedTextField(
             value = usernameInput,
             onValueChange = { usernameInput = it },
-            label = { Text("Pseudo ou ID (nom@domaine)") },
+            label = { Text("Pseudo") },
             modifier = Modifier.fillMaxWidth()
         )
 
@@ -70,47 +128,38 @@ fun AuthScreen(
             onClick = {
                 scope.launch(Dispatchers.IO) {
                     try {
-                        withContext(Dispatchers.Main) { statusMessage = "Traitement..." }
-                        
-                        val finalAccountId = if (usernameInput.contains("@")) {
-                            usernameInput 
-                        } else if (authMode == AuthMode.SIGNUP_CUSTOMER) {
-                            "$usernameInput@customer"
-                        } else {
-                            "$usernameInput@wonderland" // Domaine par défaut
+                        if (selectedDomain.isEmpty()) {
+                            withContext(Dispatchers.Main) { statusMessage = "Veuillez choisir un domaine" }
+                            return@launch
                         }
 
+                        withContext(Dispatchers.Main) { statusMessage = "Traitement..." }
+                        
                         when (authMode) {
                             AuthMode.LOGIN -> {
-                                // 1. Tenter la connexion (dérivation des clés et mise à jour config)
-                                identification.connexion(usernameInput, passwordInput)
+                                identification.connexion(usernameInput, passwordInput, selectedDomain)
+                                val technicalId = irohaClient.getAdmin().asString()
                                 
-                                // 2. Vérifier si le compte existe sur la blockchain
                                 val accounts = queryService.findAllAccounts()
-                                val exists = accounts.any { it.id.asString() == finalAccountId }
+                                val exists = accounts.any { it.id.asString() == technicalId }
                                 
                                 if (exists) {
-                                    withContext(Dispatchers.Main) { onAuthSuccess(finalAccountId) }
+                                    withContext(Dispatchers.Main) { onAuthSuccess(technicalId) }
                                 } else {
-                                    // Si échec, on remet la config par défaut
                                     identification.deconnexion()
-                                    withContext(Dispatchers.Main) { statusMessage = "Compte introuvable sur le réseau" }
+                                    withContext(Dispatchers.Main) { 
+                                        statusMessage = "Compte introuvable dans le domaine $selectedDomain" 
+                                    }
                                 }
                             }
-                            AuthMode.SIGNUP, AuthMode.SIGNUP_CUSTOMER -> {
-                                // 1. Créer le compte sur la blockchain (signé par l'admin actuel)
-                                if (authMode == AuthMode.SIGNUP_CUSTOMER) {
-                                    identification.registerCustomerAccount(usernameInput, passwordInput)
-                                } else {
-                                    transactionService.registerAccount(finalAccountId)
-                                }
-                                
-                                // 2. Connecter automatiquement l'utilisateur après création
-                                identification.connexion(usernameInput, passwordInput)
+                            AuthMode.SIGNUP -> {
+                                identification.registerAccountInDomain(usernameInput, passwordInput, selectedDomain)
+                                identification.connexion(usernameInput, passwordInput, selectedDomain)
+                                val technicalId = irohaClient.getAdmin().asString()
                                 
                                 withContext(Dispatchers.Main) { 
-                                    statusMessage = "Compte créé et connecté !"
-                                    onAuthSuccess(finalAccountId)
+                                    statusMessage = "Compte créé !"
+                                    onAuthSuccess(technicalId)
                                 }
                             }
                         }
@@ -120,22 +169,15 @@ fun AuthScreen(
                 }
             }
         ) {
-            Text(if (authMode == AuthMode.LOGIN) "Se connecter" else "Créer et se connecter")
+            Text(if (authMode == AuthMode.LOGIN) "Se connecter" else "S'inscrire")
         }
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        if (authMode == AuthMode.LOGIN) {
-            TextButton(onClick = { authMode = AuthMode.SIGNUP }) {
-                Text("S'inscrire (Général)")
-            }
-            TextButton(onClick = { authMode = AuthMode.SIGNUP_CUSTOMER }) {
-                Text("Devenir Client (Domaine Customer)")
-            }
-        } else {
-            TextButton(onClick = { authMode = AuthMode.LOGIN }) {
-                Text("Déjà un compte ? Se connecter")
-            }
+        TextButton(onClick = { 
+            authMode = if (authMode == AuthMode.LOGIN) AuthMode.SIGNUP else AuthMode.LOGIN 
+        }) {
+            Text(if (authMode == AuthMode.LOGIN) "Pas de compte ? S'inscrire" else "Déjà un compte ? Se connecter")
         }
 
         if (statusMessage.isNotEmpty()) {
@@ -146,5 +188,5 @@ fun AuthScreen(
 }
 
 enum class AuthMode {
-    LOGIN, SIGNUP, SIGNUP_CUSTOMER
+    LOGIN, SIGNUP
 }

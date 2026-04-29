@@ -33,6 +33,7 @@ class MainActivity : ComponentActivity() {
 
                     if (loggedInAccountId == null) {
                         AuthScreen(
+                            irohaClient = irohaClient,
                             queryService = queryService,
                             transactionService = transactionService,
                             identification = identification,
@@ -44,7 +45,11 @@ class MainActivity : ComponentActivity() {
                         FlowerShopApp(
                             queryService = queryService,
                             transactionService = transactionService,
-                            currentAccountId = loggedInAccountId!!
+                            identification = identification,
+                            currentAccountId = loggedInAccountId!!,
+                            onLogout = {
+                                loggedInAccountId = null
+                            }
                         )
                     }
                 }

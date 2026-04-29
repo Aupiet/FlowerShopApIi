@@ -5,13 +5,19 @@ import java.security.KeyPair
 
 object KeyUtils {
     /**
+     * Retire les préfixes Multiformats (ed0120) de la clé publique.
+     */
+    fun cleanPublicKey(hex: String): String = hex.removePrefix("ed0120")
+
+    /**
+     * Retire les préfixes Multiformats (802620) de la clé privée.
+     */
+    fun cleanPrivateKey(hex: String): String = hex.removePrefix("802620")
+
+    /**
      * Crée un KeyPair à partir de chaînes hexadécimales.
-     * Retire les préfixes Multiformats (ed0120, 802620) s'ils sont présents.
      */
     fun keyPairFromHex(publicKeyHex: String, privateKeyHex: String): KeyPair {
-        val cleanPublic = publicKeyHex.removePrefix("ed0120")
-        val cleanPrivate = privateKeyHex.removePrefix("802620")
-        
-        return keyPairFromHex(cleanPublic, cleanPrivate)
+        return keyPairFromHex(cleanPublicKey(publicKeyHex), cleanPrivateKey(privateKeyHex))
     }
 }
