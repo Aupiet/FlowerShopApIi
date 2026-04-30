@@ -36,7 +36,7 @@ fun AuthScreen(
     
     val scope = rememberCoroutineScope()
 
-    // Charger la liste des domaines au démarrage
+    // Load domain list on start
     LaunchedEffect(Unit) {
         scope.launch(Dispatchers.IO) {
             try {
@@ -49,7 +49,7 @@ fun AuthScreen(
                     }
                 }
             } catch (e: Exception) {
-                withContext(Dispatchers.Main) { statusMessage = "Erreur domaines: ${e.message}" }
+                withContext(Dispatchers.Main) { statusMessage = "Domain error: ${e.message}" }
             }
         }
     }
@@ -63,15 +63,15 @@ fun AuthScreen(
     ) {
         Text(
             text = when(authMode) {
-                AuthMode.LOGIN -> "Connexion"
-                AuthMode.SIGNUP -> "Inscription"
+                AuthMode.LOGIN -> "Login"
+                AuthMode.SIGNUP -> "Sign Up"
             },
             style = MaterialTheme.typography.headlineLarge
         )
         
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Menu déroulant pour les domaines
+        // Dropdown menu for domains
         ExposedDropdownMenuBox(
             expanded = isExpanded,
             onExpandedChange = { isExpanded = !isExpanded },
@@ -81,7 +81,7 @@ fun AuthScreen(
                 value = selectedDomain,
                 onValueChange = {},
                 readOnly = true,
-                label = { Text("Domaine") },
+                label = { Text("Domain") },
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isExpanded) },
                 colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
                 modifier = Modifier.menuAnchor().fillMaxWidth()
@@ -107,7 +107,7 @@ fun AuthScreen(
         OutlinedTextField(
             value = usernameInput,
             onValueChange = { usernameInput = it },
-            label = { Text("Pseudo") },
+            label = { Text("Username") },
             modifier = Modifier.fillMaxWidth()
         )
 
@@ -116,7 +116,7 @@ fun AuthScreen(
         OutlinedTextField(
             value = passwordInput,
             onValueChange = { passwordInput = it },
-            label = { Text("Mot de passe") },
+            label = { Text("Password") },
             visualTransformation = PasswordVisualTransformation(),
             modifier = Modifier.fillMaxWidth()
         )
@@ -129,11 +129,11 @@ fun AuthScreen(
                 scope.launch(Dispatchers.IO) {
                     try {
                         if (selectedDomain.isEmpty()) {
-                            withContext(Dispatchers.Main) { statusMessage = "Veuillez choisir un domaine" }
+                            withContext(Dispatchers.Main) { statusMessage = "Please select a domain" }
                             return@launch
                         }
 
-                        withContext(Dispatchers.Main) { statusMessage = "Traitement..." }
+                        withContext(Dispatchers.Main) { statusMessage = "Processing..." }
                         
                         when (authMode) {
                             AuthMode.LOGIN -> {
@@ -148,7 +148,7 @@ fun AuthScreen(
                                 } else {
                                     identification.deconnexion()
                                     withContext(Dispatchers.Main) { 
-                                        statusMessage = "Compte introuvable dans le domaine $selectedDomain" 
+                                        statusMessage = "Account not found in domain $selectedDomain" 
                                     }
                                 }
                             }
@@ -158,18 +158,18 @@ fun AuthScreen(
                                 val technicalId = irohaClient.getAdmin().asString()
                                 
                                 withContext(Dispatchers.Main) { 
-                                    statusMessage = "Compte créé !"
+                                    statusMessage = "Account created!"
                                     onAuthSuccess(technicalId)
                                 }
                             }
                         }
                     } catch (e: Exception) {
-                        withContext(Dispatchers.Main) { statusMessage = "Erreur: ${e.message}" }
+                        withContext(Dispatchers.Main) { statusMessage = "Error: ${e.message}" }
                     }
                 }
             }
         ) {
-            Text(if (authMode == AuthMode.LOGIN) "Se connecter" else "S'inscrire")
+            Text(if (authMode == AuthMode.LOGIN) "Login" else "Sign Up")
         }
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -177,7 +177,7 @@ fun AuthScreen(
         TextButton(onClick = { 
             authMode = if (authMode == AuthMode.LOGIN) AuthMode.SIGNUP else AuthMode.LOGIN 
         }) {
-            Text(if (authMode == AuthMode.LOGIN) "Pas de compte ? S'inscrire" else "Déjà un compte ? Se connecter")
+            Text(if (authMode == AuthMode.LOGIN) "No account? Sign Up" else "Already have an account? Login")
         }
 
         if (statusMessage.isNotEmpty()) {

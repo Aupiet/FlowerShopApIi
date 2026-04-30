@@ -15,6 +15,7 @@ import com.example.flowershopapi.iroha.TransactionService
 import com.example.flowershopapi.ui.AuthScreen
 import com.example.flowershopapi.ui.FlowerShopApp
 import com.example.flowershopapi.utils.Identification
+import com.example.flowershopapi.utils.Interaction
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -25,6 +26,7 @@ class MainActivity : ComponentActivity() {
         val queryService = QueryService(irohaClient)
         val transactionService = TransactionService(irohaClient)
         val identification = Identification(irohaClient, transactionService)
+        val interaction = Interaction(irohaClient, transactionService, queryService)
 
         setContent {
             MaterialTheme {
@@ -46,6 +48,7 @@ class MainActivity : ComponentActivity() {
                             queryService = queryService,
                             transactionService = transactionService,
                             identification = identification,
+                            interaction = interaction,
                             currentAccountId = loggedInAccountId!!,
                             onLogout = {
                                 loggedInAccountId = null

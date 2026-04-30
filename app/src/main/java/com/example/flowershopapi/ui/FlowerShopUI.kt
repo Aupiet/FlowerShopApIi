@@ -11,6 +11,7 @@ import androidx.compose.ui.unit.dp
 import com.example.flowershopapi.iroha.QueryService
 import com.example.flowershopapi.iroha.TransactionService
 import com.example.flowershopapi.utils.Identification
+import com.example.flowershopapi.utils.Interaction
 import jp.co.soramitsu.iroha2.asAccountId
 import jp.co.soramitsu.iroha2.asAssetId
 import jp.co.soramitsu.iroha2.asString
@@ -28,12 +29,13 @@ fun FlowerShopApp(
     queryService: QueryService,
     transactionService: TransactionService,
     identification: Identification,
+    interaction: Interaction,
     currentAccountId: String,
     onLogout: () -> Unit
 ) {
     val role = remember { inferRole(currentAccountId) }
     var userRole by remember { mutableStateOf(role) }
-    var statusMessage by remember { mutableStateOf("Bienvenue") }
+    var statusMessage by remember { mutableStateOf("Welcome") }
     val scope = rememberCoroutineScope()
 
     Column(modifier = Modifier.padding(16.dp)) {
@@ -44,7 +46,7 @@ fun FlowerShopApp(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text("Flower Shop - Marketplace", style = MaterialTheme.typography.headlineMedium)
-                Text("Connecté : $currentAccountId", style = MaterialTheme.typography.bodySmall)
+                Text("Connected : $currentAccountId", style = MaterialTheme.typography.bodySmall)
             }
             TextButton(onClick = {
                 scope.launch {
@@ -52,28 +54,28 @@ fun FlowerShopApp(
                     onLogout()
                 }
             }) {
-                Text("Déconnexion")
+                Text("Logout")
             }
         }
         
         Spacer(modifier = Modifier.height(16.dp))
         
-        // Seul le rôle Warehouse (Admin) peut changer de vue
+        // Only Warehouse (Admin) can switch views
         if (role == "Warehouse") {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { userRole = "Customer" }, modifier = Modifier.weight(1f)) { Text("Vue Client") }
-                Button(onClick = { userRole = "Shop" }, modifier = Modifier.weight(1f)) { Text("Boutique") }
-                Button(onClick = { userRole = "Warehouse" }, modifier = Modifier.weight(1f)) { Text("Entrepôt") }
+                Button(onClick = { userRole = "Customer" }, modifier = Modifier.weight(1f)) { Text("Customer") }
+                Button(onClick = { userRole = "Shop" }, modifier = Modifier.weight(1f)) { Text("Shop") }
+                Button(onClick = { userRole = "Warehouse" }, modifier = Modifier.weight(1f)) { Text("Warehouse") }
             }
             Spacer(modifier = Modifier.height(16.dp))
         }
 
         Text("Interface : $userRole", style = MaterialTheme.typography.titleMedium)
-        Text("Statut : $statusMessage", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
+        Text("Status : $statusMessage", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
         Spacer(modifier = Modifier.height(16.dp))
 
         when (userRole) {
-            "Customer" -> CustomerView(queryService, transactionService, currentAccountId) { statusMessage = it }
+            "Customer" -> CustomerView(queryService, transactionService, interaction, currentAccountId) { statusMessage = it }
             "Shop" -> ShopView(queryService, transactionService, currentAccountId) { statusMessage = it }
             "Warehouse" -> WarehouseView(queryService, transactionService, currentAccountId) { statusMessage = it }
         }
@@ -89,7 +91,13 @@ private fun inferRole(accountId: String): String {
 }
 
 @Composable
-fun CustomerView(queryService: QueryService, transactionService: TransactionService, accountId: String, onStatus: (String) -> Unit) {
+fun CustomerView(
+    queryService: QueryService,
+    transactionService: TransactionService,
+    interaction: Interaction,
+    accountId: String,
+    onStatus: (String) -> Unit
+) {
     val scope = rememberCoroutineScope()
     var shopAssets by remember { mutableStateOf<List<Asset>>(emptyList()) }
     var myAssets by remember { mutableStateOf<List<Asset>>(emptyList()) }
@@ -102,7 +110,7 @@ fun CustomerView(queryService: QueryService, transactionService: TransactionServ
             shopAssets = allAssets.filter { it.id.account.asString().contains("shop", ignoreCase = true) }
             myAssets = allAssets.filter { it.id.account.asString() == accountId }
         } catch (e: Exception) {
-            onStatus("Erreur : ${e.message}")
+            onStatus("Error : ${e.message}")
         } finally {
             isLoading = false
         }
@@ -113,8 +121,8 @@ fun CustomerView(queryService: QueryService, transactionService: TransactionServ
     Column {
         Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text("Mon Portefeuille", style = MaterialTheme.typography.titleSmall)
-                if (myAssets.isEmpty()) Text("Aucun asset trouvé", style = MaterialTheme.typography.bodySmall)
+                Text("My Wallet", style = MaterialTheme.typography.titleSmall)
+                if (myAssets.isEmpty()) Text("No assets found", style = MaterialTheme.typography.bodySmall)
                 myAssets.forEach { asset ->
                     val amount = (asset.value as? AssetValue.Numeric)?.numeric?.mantissa ?: BigInteger.ZERO
                     Text("${asset.id.definition.asString().split("#")[0]}: $amount", style = MaterialTheme.typography.bodyLarge)
@@ -122,7 +130,7 @@ fun CustomerView(queryService: QueryService, transactionService: TransactionServ
             }
         }
 
-        Text("Boutiques", style = MaterialTheme.typography.titleSmall)
+        Text("Shops", style = MaterialTheme.typography.titleSmall)
         if (isLoading) CircularProgressIndicator()
         else LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(shopAssets) { asset ->
@@ -139,14 +147,19 @@ fun CustomerView(queryService: QueryService, transactionService: TransactionServ
                         Button(onClick = {
                             scope.launch(Dispatchers.IO) {
                                 try {
-                                    transactionService.transferAsset(asset.id, BigDecimal(1), accountId)
+                                    val shopAccountId = asset.id.account.asString()
+                                    withContext(Dispatchers.Main) { onStatus("Purchasing from $shopAccountId...") }
+                                    
+                                    // Use the interaction service to buy the flower
+                                    interaction.buyFlower(shopAccountId)
+                                    
                                     refreshAssets()
-                                    withContext(Dispatchers.Main) { onStatus("Achat réussi !") }
+                                    withContext(Dispatchers.Main) { onStatus("Purchase successful!") }
                                 } catch (e: Exception) {
-                                    withContext(Dispatchers.Main) { onStatus("Erreur : ${e.message}") }
+                                    withContext(Dispatchers.Main) { onStatus("Error : ${e.message}") }
                                 }
                             }
-                        }) { Text("Acheter") }
+                        }) { Text("Buy") }
                     }
                 }
             }
@@ -167,7 +180,7 @@ fun ShopView(queryService: QueryService, transactionService: TransactionService,
             clients = accounts.filter { it.id.asString().contains("customer", ignoreCase = true) }
             allAssets = queryService.findAllAssets(null)
             myAssets = allAssets.filter { it.id.account.asString() == currentAccountId }
-        } catch (e: Exception) { onStatus("Erreur : ${e.message}") }
+        } catch (e: Exception) { onStatus("Error : ${e.message}") }
     }
 
     LaunchedEffect(Unit) { refreshData() }
@@ -175,7 +188,7 @@ fun ShopView(queryService: QueryService, transactionService: TransactionService,
     Column {
         Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text("Mon Stock (Boutique)", style = MaterialTheme.typography.titleSmall)
+                Text("My Stock (Shop)", style = MaterialTheme.typography.titleSmall)
                 myAssets.forEach { asset ->
                     val amount = (asset.value as? AssetValue.Numeric)?.numeric?.mantissa ?: BigInteger.ZERO
                     Text("${asset.id.definition.asString().split("#")[0]}: $amount", style = MaterialTheme.typography.bodyLarge)
@@ -183,7 +196,7 @@ fun ShopView(queryService: QueryService, transactionService: TransactionService,
             }
         }
 
-        Text("Portefeuille des Clients", style = MaterialTheme.typography.titleSmall)
+        Text("Client Wallets", style = MaterialTheme.typography.titleSmall)
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(clients) { client ->
                 val clientAssets = allAssets.filter { it.id.account == client.id }
@@ -233,7 +246,7 @@ fun WarehouseView(queryService: QueryService, transactionService: TransactionSer
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Mon Stock (Warehouse)", style = MaterialTheme.typography.titleSmall)
+                    Text("My Stock (Warehouse)", style = MaterialTheme.typography.titleSmall)
                     myAssets.forEach { asset ->
                         val amount = (asset.value as? AssetValue.Numeric)?.numeric?.mantissa ?: BigInteger.ZERO
                         Text("${asset.id.definition.asString().split("#")[0]}: $amount", style = MaterialTheme.typography.bodyLarge)
@@ -245,20 +258,20 @@ fun WarehouseView(queryService: QueryService, transactionService: TransactionSer
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Administration Blockchain", style = MaterialTheme.typography.titleSmall)
-                    OutlinedTextField(value = newDomainId, onValueChange = { newDomainId = it }, label = { Text("Nouveau Domaine") }, modifier = Modifier.fillMaxWidth())
+                    Text("Blockchain Administration", style = MaterialTheme.typography.titleSmall)
+                    OutlinedTextField(value = newDomainId, onValueChange = { newDomainId = it }, label = { Text("New Domain") }, modifier = Modifier.fillMaxWidth())
                     Button(onClick = { scope.launch(Dispatchers.IO) { 
-                        try { transactionService.registerDomain(newDomainId); withContext(Dispatchers.Main) { onStatus("Domaine créé"); newDomainId = "" } } 
-                        catch (e: Exception) { withContext(Dispatchers.Main) { onStatus(e.message ?: "Err") } }
-                    }}) { Text("Créer Domaine") }
+                        try { transactionService.registerDomain(newDomainId); withContext(Dispatchers.Main) { onStatus("Domain created"); newDomainId = "" } } 
+                        catch (e: Exception) { withContext(Dispatchers.Main) { onStatus(e.message ?: "Error") } }
+                    }}) { Text("Create Domain") }
                     
                     Divider(modifier = Modifier.padding(vertical = 8.dp))
                     
-                    OutlinedTextField(value = newAccountId, onValueChange = { newAccountId = it }, label = { Text("Nouveau Compte (id@domaine)") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = newAccountId, onValueChange = { newAccountId = it }, label = { Text("New Account (id@domain)") }, modifier = Modifier.fillMaxWidth())
                     Button(onClick = { scope.launch(Dispatchers.IO) { 
-                        try { transactionService.registerAccount(newAccountId); withContext(Dispatchers.Main) { onStatus("Compte créé"); newAccountId = ""; refreshData() } } 
-                        catch (e: Exception) { withContext(Dispatchers.Main) { onStatus(e.message ?: "Err") } }
-                    }}) { Text("Créer Compte") }
+                        try { transactionService.registerAccount(newAccountId); withContext(Dispatchers.Main) { onStatus("Account created"); newAccountId = ""; refreshData() } } 
+                        catch (e: Exception) { withContext(Dispatchers.Main) { onStatus(e.message ?: "Error") } }
+                    }}) { Text("Create Account") }
                 }
             }
         }
@@ -266,39 +279,39 @@ fun WarehouseView(queryService: QueryService, transactionService: TransactionSer
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Mint & Transfert", style = MaterialTheme.typography.titleSmall)
+                    Text("Mint & Transfer", style = MaterialTheme.typography.titleSmall)
                     
-                    Text("Mint (Miner)", style = MaterialTheme.typography.labelMedium)
-                    OutlinedTextField(value = mintTargetAccount, onValueChange = { mintTargetAccount = it }, label = { Text("Compte cible") }, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = mintAssetName, onValueChange = { mintAssetName = it }, label = { Text("Asset (ex: rose#flower)") }, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = mintAmount, onValueChange = { mintAmount = it }, label = { Text("Quantité") }, modifier = Modifier.fillMaxWidth())
+                    Text("Mint (Mine Assets)", style = MaterialTheme.typography.labelMedium)
+                    OutlinedTextField(value = mintTargetAccount, onValueChange = { mintTargetAccount = it }, label = { Text("Target Account") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = mintAssetName, onValueChange = { mintAssetName = it }, label = { Text("Asset (e.g., rose#flower)") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = mintAmount, onValueChange = { mintAmount = it }, label = { Text("Amount") }, modifier = Modifier.fillMaxWidth())
                     Button(onClick = { scope.launch(Dispatchers.IO) { 
                         try { 
                             val assetId = "$mintAssetName#$mintTargetAccount".asAssetId()
                             transactionService.mintAsset(assetId, BigDecimal(mintAmount))
                             refreshData()
-                            withContext(Dispatchers.Main) { onStatus("Mint réussi !") }
-                        } catch (e: Exception) { withContext(Dispatchers.Main) { onStatus(e.message ?: "Err") } }
-                    }}) { Text("Miner (Mint)") }
+                            withContext(Dispatchers.Main) { onStatus("Mint successful !") }
+                        } catch (e: Exception) { withContext(Dispatchers.Main) { onStatus(e.message ?: "Error") } }
+                    }}) { Text("Mint (Mine)") }
 
                     Divider(modifier = Modifier.padding(vertical = 8.dp))
 
-                    Text("Transfert (Expédier)", style = MaterialTheme.typography.labelMedium)
-                    OutlinedTextField(value = transferFromAssetId, onValueChange = { transferFromAssetId = it }, label = { Text("Asset à envoyer (ex: rose#flower#$currentAccountId)") }, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = transferToAccount, onValueChange = { transferToAccount = it }, label = { Text("Compte destinataire") }, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = transferAmount, onValueChange = { transferAmount = it }, label = { Text("Quantité") }, modifier = Modifier.fillMaxWidth())
+                    Text("Transfer (Ship Assets)", style = MaterialTheme.typography.labelMedium)
+                    OutlinedTextField(value = transferFromAssetId, onValueChange = { transferFromAssetId = it }, label = { Text("Asset to send (e.g., rose#flower#$currentAccountId)") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = transferToAccount, onValueChange = { transferToAccount = it }, label = { Text("Recipient Account") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = transferAmount, onValueChange = { transferAmount = it }, label = { Text("Amount") }, modifier = Modifier.fillMaxWidth())
                     Button(onClick = { scope.launch(Dispatchers.IO) { 
                         try { 
                             transactionService.transferAsset(transferFromAssetId.asAssetId(), BigDecimal(transferAmount), transferToAccount)
                             refreshData()
-                            withContext(Dispatchers.Main) { onStatus("Transfert réussi !") }
-                        } catch (e: Exception) { withContext(Dispatchers.Main) { onStatus(e.message ?: "Err") } }
-                    }}) { Text("Transférer") }
+                            withContext(Dispatchers.Main) { onStatus("Transfer successful !") }
+                        } catch (e: Exception) { withContext(Dispatchers.Main) { onStatus(e.message ?: "Error") } }
+                    }}) { Text("Transfer") }
                 }
             }
         }
 
-        item { Text("Visualisation Globale", style = MaterialTheme.typography.titleSmall) }
+        item { Text("Global Network View", style = MaterialTheme.typography.titleSmall) }
         items(accounts) { account ->
             val accountAssets = allAssets.filter { it.id.account == account.id }
             Card(modifier = Modifier.fillMaxWidth()) {

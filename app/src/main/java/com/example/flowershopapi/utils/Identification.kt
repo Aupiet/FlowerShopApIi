@@ -34,6 +34,13 @@ class Identification(
 
         val pubHex = Hex.toHexString(pubKeyParams.encoded)   // 64 chars
         val privHex = Hex.toHexString(privKeyParams.encoded) // 64 chars
+        /*
+        println("--- DEBUG KEYS ---")
+        println("Username: $username")
+        println("Private Key Hex: $privHex")
+        println("Public Key Hex: $pubHex")
+        println("------------------")
+        */
         return pubHex to privHex
     }
 
